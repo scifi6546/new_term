@@ -64,7 +64,7 @@ pub struct Renderer<B: gfx_hal::Backend> {
     //image_srv: ManuallyDrop<B::ImageView>,
     buffer_memory: ManuallyDrop<B::Memory>,
     //image_memory: ManuallyDrop<B::Memory>,
-    image_upload_memory: ManuallyDrop<B::Memory>,
+    //image_upload_memory: ManuallyDrop<B::Memory>,
     //sampler: ManuallyDrop<B::Sampler>,
     frames_in_flight: usize,
     frame: u64,
@@ -190,7 +190,6 @@ where
             })
             .unwrap()
             .into();
-
         // TODO: check transitions: read/write mapping and vertex buffer read
         let buffer_memory = unsafe {
             let memory = device
@@ -231,29 +230,29 @@ where
         let image_mem_reqs = unsafe { device.get_buffer_requirements(&image_upload_buffer) };
 
         // copy image data into staging buffer
-        let image_upload_memory = unsafe {
-            let memory = device
-                .allocate_memory(upload_type, image_mem_reqs.size)
-                .unwrap();
-            device
-                .bind_buffer_memory(&memory, 0, &mut image_upload_buffer)
-                .unwrap();
-            let mapping = device.map_memory(&memory, m::Segment::ALL).unwrap();
-            for y in 0..height as usize {
-                let row = &(*img)[y * (width as usize) * image_stride
-                    ..(y + 1) * (width as usize) * image_stride];
-                ptr::copy_nonoverlapping(
-                    row.as_ptr(),
-                    mapping.offset(y as isize * row_pitch as isize),
-                    width as usize * image_stride,
-                );
-            }
-            device
-                .flush_mapped_memory_ranges(iter::once((&memory, m::Segment::ALL)))
-                .unwrap();
-            device.unmap_memory(&memory);
-            ManuallyDrop::new(memory)
-        };
+        //let image_upload_memory = unsafe {
+        //    let memory = device
+        //        .allocate_memory(upload_type, image_mem_reqs.size)
+        //        .unwrap();
+        //    device
+        //        .bind_buffer_memory(&memory, 0, &mut image_upload_buffer)
+        //        .unwrap();
+        //    let mapping = device.map_memory(&memory, m::Segment::ALL).unwrap();
+        //    for y in 0..height as usize {
+        //        let row = &(*img)[y * (width as usize) * image_stride
+        //            ..(y + 1) * (width as usize) * image_stride];
+        //        ptr::copy_nonoverlapping(
+        //            row.as_ptr(),
+        //            mapping.offset(y as isize * row_pitch as isize),
+        //            width as usize * image_stride,
+        //        );
+        //    }
+        //    device
+        //        .flush_mapped_memory_ranges(iter::once((&memory, m::Segment::ALL)))
+        //        .unwrap();
+        //    device.unmap_memory(&memory);
+        //    ManuallyDrop::new(memory)
+        //};
 
         //let mut image_logo = ManuallyDrop::new(
         //    unsafe {
@@ -606,7 +605,7 @@ where
             &device,
             &mut cmd_pools[0],
             &mut queue_group,
-            &image_upload_buffer,
+            &mut image_upload_buffer,
             row_pitch,
             image_stride,
             height,
@@ -614,6 +613,9 @@ where
             kind,
             &desc_set,
             &memory_types,
+            upload_type,
+            image_mem_reqs,
+            img,
         );
         Renderer {
             instance,
@@ -640,7 +642,7 @@ where
             //image_srv,
             buffer_memory,
             //image_memory,
-            image_upload_memory,
+            //image_upload_memory,
             //sampler,
             frames_in_flight,
             frame: 0,
@@ -820,9 +822,9 @@ where
             //TODO DO THIS ON RENDER_TEXTURE
             //self.device
             //    .free_memory(ManuallyDrop::into_inner(ptr::read(&self.image_memory)));
-            self.device.free_memory(ManuallyDrop::into_inner(ptr::read(
-                &self.image_upload_memory,
-            )));
+            //self.device.free_memory(ManuallyDrop::into_inner(ptr::read(
+            //    &self.image_upload_memory,
+            //)));
             self.device
                 .destroy_graphics_pipeline(ManuallyDrop::into_inner(ptr::read(&self.pipeline)));
             self.device

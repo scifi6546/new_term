@@ -12,8 +12,10 @@ use gfx_hal::{
 };
 use std::mem::ManuallyDrop;
 use std::ptr;
+use std::iter;
 pub struct RenderTexture<B:gfx_hal::Backend> {
     image_logo:ManuallyDrop<B::Image>,
+    image_upload_memory: ManuallyDrop<B::Memory>,
 }
 impl<B: gfx_hal::Backend> RenderTexture<B> {
     pub fn new(
@@ -21,7 +23,7 @@ impl<B: gfx_hal::Backend> RenderTexture<B> {
         command_pool: &mut B::CommandPool,
         queue_group: &mut QueueGroup<B>,
 
-        image_upload_buffer: &ManuallyDrop<B::Buffer>,
+        image_upload_buffer: &mut ManuallyDrop<B::Buffer>,
         row_pitch: u32,
         image_stride: usize,
         height: u32,
@@ -29,7 +31,33 @@ impl<B: gfx_hal::Backend> RenderTexture<B> {
         kind: gfx_hal::image::Kind,
         desc_set: &B::DescriptorSet,
         memory_types: &std::vec::Vec<gfx_hal::adapter::MemoryType>,
+        upload_type: gfx_hal::MemoryTypeId,
+        image_mem_reqs:gfx_hal::memory::Requirements,
+        img:image::RgbaImage,
     ) -> RenderTexture<B> {
+        let image_upload_memory = unsafe {
+            let memory = device
+                .allocate_memory(upload_type, image_mem_reqs.size)
+                .unwrap();
+            device
+                .bind_buffer_memory(&memory, 0, image_upload_buffer)
+                .unwrap();
+            let mapping = device.map_memory(&memory, m::Segment::ALL).unwrap();
+            for y in 0..height as usize {
+                let row = &(*img)[y * (width as usize) * image_stride
+                    ..(y + 1) * (width as usize) * image_stride];
+                ptr::copy_nonoverlapping(
+                    row.as_ptr(),
+                    mapping.offset(y as isize * row_pitch as isize),
+                    width as usize * image_stride,
+                );
+            }
+            device
+                .flush_mapped_memory_ranges(iter::once((&memory, m::Segment::ALL)))
+                .unwrap();
+            device.unmap_memory(&memory);
+            ManuallyDrop::new(memory)
+        };
         let mut image_logo = ManuallyDrop::new(
             unsafe {
                 device.create_image(
@@ -176,13 +204,19 @@ impl<B: gfx_hal::Backend> RenderTexture<B> {
             device.destroy_fence(copy_fence);
         }
         RenderTexture {
-            image_logo
+            image_logo,
+            image_upload_memory,
         }
     }
     pub unsafe fn drop(&mut self,device: &B::Device){
         
         device
             .destroy_image(ManuallyDrop::into_inner(ptr::read(&self.image_logo)));
+            device.free_memory(ManuallyDrop::into_inner(ptr::read(
+                &self.image_upload_memory,
+            )));
+        
         }
+        
         
 }
