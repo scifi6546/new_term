@@ -27,7 +27,6 @@ pub fn wasm_main() {
     main();
 }
 mod renderer;
-use renderer::Renderer;
 use gfx_hal::{
     buffer, command, format as f,
     format::{AsFormat, ChannelType, Rgba8Srgb as ColorFormat, Swizzle},
@@ -40,6 +39,7 @@ use gfx_hal::{
     queue::{QueueGroup, Submission},
     window,
 };
+use renderer::Renderer;
 
 use std::{
     borrow::Borrow,
@@ -48,12 +48,6 @@ use std::{
     mem::{self, ManuallyDrop},
     ptr,
 };
-
-
-
-
-
-
 
 fn main() {
     #[cfg(target_arch = "wasm32")]
@@ -166,4 +160,3 @@ fn main() {
         }
     });
 }
-
