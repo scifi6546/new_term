@@ -1,12 +1,12 @@
 use gfx_hal::{
     buffer, command, format as f,
-    format::{AsFormat, ChannelType, Rgba8Srgb as ColorFormat, Swizzle},
+    format::ChannelType,
     image as i, memory as m, pass,
     pass::Subpass,
     pool,
     prelude::*,
     pso,
-    pso::{PipelineStage, ShaderStageFlags, VertexInputRate},
+    pso::{ShaderStageFlags, VertexInputRate},
     queue::{QueueGroup, Submission},
     window,
 };
@@ -70,7 +70,9 @@ pub struct Renderer<B: gfx_hal::Backend> {
     frame: u64,
     render_texture: RenderTexture<B>,
 }
-
+pub trait Updater {
+    fn update(&mut self, image: &mut image::RgbaImage);
+}
 impl<B> Renderer<B>
 where
     B: gfx_hal::Backend,
@@ -100,7 +102,7 @@ where
         let mut queue_group = gpu.queue_groups.pop().unwrap();
         let device = gpu.device;
 
-        let mut command_pool = unsafe {
+        let command_pool = unsafe {
             device.create_command_pool(queue_group.family, pool::CommandPoolCreateFlags::empty())
         }
         .expect("Can't create command pool");
@@ -659,7 +661,7 @@ where
         self.viewport.rect.h = extent.height as _;
     }
 
-    pub fn render(&mut self) {
+    pub fn render<S: Updater>(&mut self, surface: &mut S) {
         let surface_image = unsafe {
             match self.surface.acquire_image(!0) {
                 Ok((image, _)) => image,
@@ -688,7 +690,7 @@ where
         // and number of frames in flight. Pay close attention to where this index is needed
         // versus when the swapchain image index we got from acquire_image is needed.
         let frame_idx = self.frame as usize % self.frames_in_flight;
-
+        surface.update(&mut self.render_texture.img);
         // Wait for the fence of the previous submission of this frame and reset it; ensures we are
         // submitting only up to maximum number of frames_in_flight if we are submitting faster than
         // the gpu can keep up with. This would also guarantee that any resources which need to be

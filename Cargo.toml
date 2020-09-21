@@ -19,6 +19,7 @@ winit = "0.22.2"
 gfx-auxil = "0.6.0"
 gfx-backend-empty = "0.6.0"
 font-kit="0.10.0"
+pathfinder_geometry = "0.5.1"
 [dependencies.gfx-backend-vulkan]
 version = "0.6.1"
 optional = true

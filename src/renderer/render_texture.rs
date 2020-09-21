@@ -25,9 +25,9 @@ pub struct RenderTexture<B: gfx_hal::Backend> {
     height: u32,
     width: u32,
     image_stride: usize,
-    img: image::RgbaImage,
-    upload_type:gfx_hal::MemoryTypeId,
-    image_mem_reqs:gfx_hal::memory::Requirements,
+    pub img: image::RgbaImage,
+    upload_type: gfx_hal::MemoryTypeId,
+    image_mem_reqs: gfx_hal::memory::Requirements,
 }
 impl<B: gfx_hal::Backend> RenderTexture<B> {
     pub fn new(
@@ -242,7 +242,6 @@ impl<B: gfx_hal::Backend> RenderTexture<B> {
             img,
             upload_type,
             image_mem_reqs,
-
         }
     }
     pub unsafe fn drop(&mut self, device: &B::Device) {

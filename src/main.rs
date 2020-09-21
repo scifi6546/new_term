@@ -27,6 +27,7 @@ pub fn wasm_main() {
     main();
 }
 mod renderer;
+mod text_render;
 use gfx_hal::{
     buffer, command, format as f,
     format::{AsFormat, ChannelType, Rgba8Srgb as ColorFormat, Swizzle},
@@ -40,6 +41,7 @@ use gfx_hal::{
     window,
 };
 use renderer::Renderer;
+pub use renderer::Updater;
 
 use std::{
     borrow::Borrow,
@@ -50,6 +52,7 @@ use std::{
 };
 
 fn main() {
+    let mut text_render = text_render::TextRender::new(renderer::DIMS.width,renderer::DIMS.height);
     #[cfg(target_arch = "wasm32")]
     console_log::init_with_level(log::Level::Debug).unwrap();
 
@@ -123,7 +126,7 @@ fn main() {
 
     let mut renderer = Renderer::new(instance, surface, adapter);
 
-    renderer.render();
+    renderer.render(&mut text_render);
 
     // It is important that the closure move captures the Renderer,
     // otherwise it will not be dropped when the event loop exits.
@@ -138,11 +141,17 @@ fn main() {
                 winit::event::WindowEvent::KeyboardInput {
                     input:
                         winit::event::KeyboardInput {
-                            virtual_keycode: Some(winit::event::VirtualKeyCode::Escape),
-                            ..
+                            virtual_keycode, ..
                         },
                     ..
-                } => *control_flow = winit::event_loop::ControlFlow::Exit,
+                } => {
+                    text_render.update(virtual_keycode);
+                }
+
+                winit::event::WindowEvent::KeyboardInput { input, .. } => {
+                    println!("input: {:?}", input)
+                }
+
                 winit::event::WindowEvent::Resized(dims) => {
                     println!("resized to {:?}", dims);
                     renderer.dimensions = window::Extent2D {
@@ -154,7 +163,7 @@ fn main() {
                 _ => {}
             },
             winit::event::Event::RedrawEventsCleared => {
-                renderer.render();
+                renderer.render(&mut text_render);
             }
             _ => {}
         }
