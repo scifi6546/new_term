@@ -707,6 +707,8 @@ where
 
         // Rendering
         let cmd_buffer = &mut self.cmd_buffers[frame_idx];
+        self.render_texture
+            .update(&mut self.device, cmd_buffer, &mut self.queue_group);
         unsafe {
             cmd_buffer.begin_primary(command::CommandBufferFlags::ONE_TIME_SUBMIT);
 

@@ -21,24 +21,22 @@ pub struct RenderTexture<B: gfx_hal::Backend> {
     image_logo: ManuallyDrop<B::Image>,
     image_upload_memory: ManuallyDrop<B::Memory>,
     image_upload_buffer: ManuallyDrop<B::Buffer>,
+    row_pitch: u32,
+    height: u32,
+    width: u32,
+    image_stride: usize,
+    img: image::RgbaImage,
+    upload_type:gfx_hal::MemoryTypeId,
+    image_mem_reqs:gfx_hal::memory::Requirements,
 }
 impl<B: gfx_hal::Backend> RenderTexture<B> {
     pub fn new(
         device: &B::Device,
         command_pool: &mut B::CommandPool,
         queue_group: &mut QueueGroup<B>,
-
-        //image_upload_buffer: &mut ManuallyDrop<B::Buffer>,
-        //row_pitch: u32,
-        //image_stride: usize,
-        //height: u32,
-        //width: u32,
-        //kind: gfx_hal::image::Kind,
         desc_set: &B::DescriptorSet,
         memory_types: &std::vec::Vec<gfx_hal::adapter::MemoryType>,
         upload_type: gfx_hal::MemoryTypeId,
-        //image_mem_reqs:gfx_hal::memory::Requirements,
-        //img:image::RgbaImage,
         limits: gfx_hal::Limits,
     ) -> RenderTexture<B> {
         // Image
@@ -237,6 +235,14 @@ impl<B: gfx_hal::Backend> RenderTexture<B> {
             image_logo,
             image_upload_memory,
             image_upload_buffer,
+            row_pitch,
+            width,
+            height,
+            image_stride,
+            img,
+            upload_type,
+            image_mem_reqs,
+
         }
     }
     pub unsafe fn drop(&mut self, device: &B::Device) {
@@ -247,5 +253,112 @@ impl<B: gfx_hal::Backend> RenderTexture<B> {
         device.destroy_buffer(ManuallyDrop::into_inner(ptr::read(
             &self.image_upload_buffer,
         )));
+    }
+    pub fn update(
+        &mut self,
+        device: &mut B::Device,
+        cmd_buffer: &mut B::CommandBuffer,
+        queue_group: &mut QueueGroup<B>,
+    ) {
+        for x in 15..=17 {
+            for y in 8..24 {
+                self.img.put_pixel(x, y, image::Rgba([255, 0, 0, 255]));
+                self.img.put_pixel(y, x, image::Rgba([255, 0, 0, 255]));
+            }
+        }
+        //buffering texture
+        let mut copy_fence = device.create_fence(false).expect("Could not create fence");
+        unsafe {
+            let memory = device
+                .allocate_memory(self.upload_type, self.image_mem_reqs.size)
+                .unwrap();
+            device
+                .bind_buffer_memory(&memory, 0, &mut self.image_upload_buffer)
+                .unwrap();
+            let mapping = device.map_memory(&memory, m::Segment::ALL).unwrap();
+            for y in 0..self.height as usize {
+                let row = &(*self.img)[y * (self.width as usize) * self.image_stride
+                    ..(y + 1) * (self.width as usize) * self.image_stride];
+                ptr::copy_nonoverlapping(
+                    row.as_ptr(),
+                    mapping.offset(y as isize * self.row_pitch as isize),
+                    self.width as usize * self.image_stride,
+                );
+            }
+            device
+                .flush_mapped_memory_ranges(iter::once((&memory, m::Segment::ALL)))
+                .unwrap();
+            device.unmap_memory(&memory);
+            ManuallyDrop::new(memory);
+            //let mut cmd_buffer = command_pool.allocate_one(command::Level::Primary);
+            cmd_buffer.begin_primary(command::CommandBufferFlags::ONE_TIME_SUBMIT);
+
+            let image_barrier = m::Barrier::Image {
+                states: (i::Access::empty(), i::Layout::Undefined)
+                    ..(i::Access::TRANSFER_WRITE, i::Layout::TransferDstOptimal),
+                target: &*self.image_logo,
+                families: None,
+                range: i::SubresourceRange {
+                    aspects: f::Aspects::COLOR,
+                    ..Default::default()
+                },
+            };
+
+            cmd_buffer.pipeline_barrier(
+                PipelineStage::TOP_OF_PIPE..PipelineStage::TRANSFER,
+                m::Dependencies::empty(),
+                &[image_barrier],
+            );
+
+            cmd_buffer.copy_buffer_to_image(
+                &self.image_upload_buffer,
+                &self.image_logo,
+                i::Layout::TransferDstOptimal,
+                &[command::BufferImageCopy {
+                    buffer_offset: 0,
+                    buffer_width: self.row_pitch / (self.image_stride as u32),
+                    buffer_height: self.height as u32,
+                    image_layers: i::SubresourceLayers {
+                        aspects: f::Aspects::COLOR,
+                        level: 0,
+                        layers: 0..1,
+                    },
+                    image_offset: i::Offset { x: 0, y: 0, z: 0 },
+                    image_extent: i::Extent {
+                        width: self.width,
+                        height: self.height,
+                        depth: 1,
+                    },
+                }],
+            );
+
+            let image_barrier = m::Barrier::Image {
+                states: (i::Access::TRANSFER_WRITE, i::Layout::TransferDstOptimal)
+                    ..(i::Access::SHADER_READ, i::Layout::ShaderReadOnlyOptimal),
+                target: &*self.image_logo,
+                families: None,
+                range: i::SubresourceRange {
+                    aspects: f::Aspects::COLOR,
+                    ..Default::default()
+                },
+            };
+            cmd_buffer.pipeline_barrier(
+                PipelineStage::TRANSFER..PipelineStage::FRAGMENT_SHADER,
+                m::Dependencies::empty(),
+                &[image_barrier],
+            );
+
+            cmd_buffer.finish();
+
+            queue_group.queues[0]
+                .submit_without_semaphores(Some(&cmd_buffer), Some(&mut copy_fence));
+
+            device
+                .wait_for_fence(&copy_fence, !0)
+                .expect("Can't wait for fence");
+        }
+        unsafe {
+            device.destroy_fence(copy_fence);
+        }
     }
 }
