@@ -59,7 +59,7 @@ pub struct Renderer<B: gfx_hal::Backend> {
     cmd_pools: Vec<B::CommandPool>,
     cmd_buffers: Vec<B::CommandBuffer>,
     vertex_buffer: ManuallyDrop<B::Buffer>,
-    image_upload_buffer: ManuallyDrop<B::Buffer>,
+    //image_upload_buffer: ManuallyDrop<B::Buffer>,
     //image_logo: ManuallyDrop<B::Image>,
     //image_srv: ManuallyDrop<B::ImageView>,
     buffer_memory: ManuallyDrop<B::Memory>,
@@ -207,27 +207,27 @@ where
             ManuallyDrop::new(memory)
         };
 
-        // Image
-        let img_data = include_bytes!("data/logo.png");
-
-        let img = image::load(Cursor::new(&img_data[..]), image::ImageFormat::Png)
-            .unwrap()
-            .to_rgba();
-        let (width, height) = img.dimensions();
-        let kind = i::Kind::D2(width as i::Size, height as i::Size, 1, 1);
-        let row_alignment_mask = limits.optimal_buffer_copy_pitch_alignment as u32 - 1;
-        let image_stride = 4usize;
-        let row_pitch = (width * image_stride as u32 + row_alignment_mask) & !row_alignment_mask;
-        let upload_size = (height * row_pitch) as u64;
-        let padded_upload_size = ((upload_size + non_coherent_alignment - 1)
-            / non_coherent_alignment)
-            * non_coherent_alignment;
-
-        let mut image_upload_buffer = ManuallyDrop::new(
-            unsafe { device.create_buffer(padded_upload_size, buffer::Usage::TRANSFER_SRC) }
-                .unwrap(),
-        );
-        let image_mem_reqs = unsafe { device.get_buffer_requirements(&image_upload_buffer) };
+        //// Image
+        //let img_data = include_bytes!("data/logo.png");
+        //
+        //let img = image::load(Cursor::new(&img_data[..]), image::ImageFormat::Png)
+        //    .unwrap()
+        //    .to_rgba();
+        //let (width, height) = img.dimensions();
+        //let kind = i::Kind::D2(width as i::Size, height as i::Size, 1, 1);
+        //let row_alignment_mask = limits.optimal_buffer_copy_pitch_alignment as u32 - 1;
+        //let image_stride = 4usize;
+        //let row_pitch = (width * image_stride as u32 + row_alignment_mask) & !row_alignment_mask;
+        //let upload_size = (height * row_pitch) as u64;
+        //let padded_upload_size = ((upload_size + non_coherent_alignment - 1)
+        //    / non_coherent_alignment)
+        //    * non_coherent_alignment;
+        //
+        //let mut image_upload_buffer = ManuallyDrop::new(
+        //    unsafe { device.create_buffer(padded_upload_size, buffer::Usage::TRANSFER_SRC) }
+        //        .unwrap(),
+        //);
+        //let image_mem_reqs = unsafe { device.get_buffer_requirements(&image_upload_buffer) };
 
         // copy image data into staging buffer
         //let image_upload_memory = unsafe {
@@ -305,7 +305,7 @@ where
         //    }
         //    .expect("Can't create sampler"),
         //);
-//
+        //
         //unsafe {
         //    device.write_descriptor_sets(vec![
         //        pso::DescriptorSetWrite {
@@ -605,17 +605,10 @@ where
             &device,
             &mut cmd_pools[0],
             &mut queue_group,
-            &mut image_upload_buffer,
-            row_pitch,
-            image_stride,
-            height,
-            width,
-            kind,
             &desc_set,
             &memory_types,
             upload_type,
-            image_mem_reqs,
-            img,
+            limits,
         );
         Renderer {
             instance,
@@ -637,7 +630,7 @@ where
             cmd_pools,
             cmd_buffers,
             vertex_buffer,
-            image_upload_buffer,
+            //image_upload_buffer,
             //image_logo,
             //image_srv,
             buffer_memory,
@@ -793,10 +786,6 @@ where
 
             self.device
                 .destroy_buffer(ManuallyDrop::into_inner(ptr::read(&self.vertex_buffer)));
-            self.device
-                .destroy_buffer(ManuallyDrop::into_inner(ptr::read(
-                    &self.image_upload_buffer,
-                )));
 
             //TODO DESTROY ON RENDER_TEXTURE
             //self.device

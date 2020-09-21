@@ -10,12 +10,17 @@ use gfx_hal::{
     queue::{QueueGroup, Submission},
     window,
 };
-use std::mem::ManuallyDrop;
-use std::ptr;
-use std::iter;
-pub struct RenderTexture<B:gfx_hal::Backend> {
-    image_logo:ManuallyDrop<B::Image>,
+use std::{
+    borrow::Borrow,
+    io::Cursor,
+    iter,
+    mem::{self, ManuallyDrop},
+    ptr,
+};
+pub struct RenderTexture<B: gfx_hal::Backend> {
+    image_logo: ManuallyDrop<B::Image>,
     image_upload_memory: ManuallyDrop<B::Memory>,
+    image_upload_buffer: ManuallyDrop<B::Buffer>,
 }
 impl<B: gfx_hal::Backend> RenderTexture<B> {
     pub fn new(
@@ -23,24 +28,49 @@ impl<B: gfx_hal::Backend> RenderTexture<B> {
         command_pool: &mut B::CommandPool,
         queue_group: &mut QueueGroup<B>,
 
-        image_upload_buffer: &mut ManuallyDrop<B::Buffer>,
-        row_pitch: u32,
-        image_stride: usize,
-        height: u32,
-        width: u32,
-        kind: gfx_hal::image::Kind,
+        //image_upload_buffer: &mut ManuallyDrop<B::Buffer>,
+        //row_pitch: u32,
+        //image_stride: usize,
+        //height: u32,
+        //width: u32,
+        //kind: gfx_hal::image::Kind,
         desc_set: &B::DescriptorSet,
         memory_types: &std::vec::Vec<gfx_hal::adapter::MemoryType>,
         upload_type: gfx_hal::MemoryTypeId,
-        image_mem_reqs:gfx_hal::memory::Requirements,
-        img:image::RgbaImage,
+        //image_mem_reqs:gfx_hal::memory::Requirements,
+        //img:image::RgbaImage,
+        limits: gfx_hal::Limits,
     ) -> RenderTexture<B> {
+        // Image
+        let non_coherent_alignment = limits.non_coherent_atom_size as u64;
+        let img_data = include_bytes!("../data/logo.png");
+
+        let img = image::load(Cursor::new(&img_data[..]), image::ImageFormat::Png)
+            .unwrap()
+            .to_rgba();
+        let (width, height) = img.dimensions();
+        let kind = i::Kind::D2(width as i::Size, height as i::Size, 1, 1);
+        let row_alignment_mask = limits.optimal_buffer_copy_pitch_alignment as u32 - 1;
+        let image_stride = 4usize;
+        let row_pitch = (width * image_stride as u32 + row_alignment_mask) & !row_alignment_mask;
+        let upload_size = (height * row_pitch) as u64;
+        let padded_upload_size = ((upload_size + non_coherent_alignment - 1)
+            / non_coherent_alignment)
+            * non_coherent_alignment;
+
+        let mut image_upload_buffer = ManuallyDrop::new(
+            unsafe { device.create_buffer(padded_upload_size, buffer::Usage::TRANSFER_SRC) }
+                .unwrap(),
+        );
+
+        let image_mem_reqs = unsafe { device.get_buffer_requirements(&image_upload_buffer) };
+        // copy image data into staging buffer
         let image_upload_memory = unsafe {
             let memory = device
                 .allocate_memory(upload_type, image_mem_reqs.size)
                 .unwrap();
             device
-                .bind_buffer_memory(&memory, 0, image_upload_buffer)
+                .bind_buffer_memory(&memory, 0, &mut image_upload_buffer)
                 .unwrap();
             let mapping = device.map_memory(&memory, m::Segment::ALL).unwrap();
             for y in 0..height as usize {
@@ -206,17 +236,16 @@ impl<B: gfx_hal::Backend> RenderTexture<B> {
         RenderTexture {
             image_logo,
             image_upload_memory,
+            image_upload_buffer,
         }
     }
-    pub unsafe fn drop(&mut self,device: &B::Device){
-        
-        device
-            .destroy_image(ManuallyDrop::into_inner(ptr::read(&self.image_logo)));
-            device.free_memory(ManuallyDrop::into_inner(ptr::read(
-                &self.image_upload_memory,
-            )));
-        
-        }
-        
-        
+    pub unsafe fn drop(&mut self, device: &B::Device) {
+        device.destroy_image(ManuallyDrop::into_inner(ptr::read(&self.image_logo)));
+        device.free_memory(ManuallyDrop::into_inner(ptr::read(
+            &self.image_upload_memory,
+        )));
+        device.destroy_buffer(ManuallyDrop::into_inner(ptr::read(
+            &self.image_upload_buffer,
+        )));
+    }
 }
