@@ -10,12 +10,10 @@ impl ProcessManager {
         let mut p = Command::new("powershell")
             .spawn()
             .expect("failed to launch powershell");
-        let m = ProcessManager {
+         ProcessManager {
             stdin: p.stdin.unwrap(),
             stdout: p.stdout.unwrap(),
-        };
-        p.kill();
-        return m;
+        }
     }
     fn write(&mut self, to_write: String) {
         self.stdin.write(to_write.as_bytes());
