@@ -30,7 +30,11 @@ impl TextRender {
     }
     pub fn update(&mut self, key: Option<winit::event::VirtualKeyCode>) {
         if let Some(key) = key {
-            self.buffer.push(key_code_to_char(key));
+            let c = key_code_to_char(key);
+            let mut str = String::new();
+            str.push(c);
+            self.process.write(str);
+            self.buffer.push(c);
         }
     }
 }
@@ -67,6 +71,10 @@ fn key_code_to_char(key: winit::event::VirtualKeyCode) -> char {
 }
 impl crate::Updater for TextRender {
     fn update(&mut self, image: &mut image::RgbaImage) {
+        let read_string = self.process.read();
+        for c in read_string.chars() {
+            self.buffer.push(c);
+        }
         let (x, y) = image.dimensions();
         if x != self.canvas.size.x() as u32 || y != self.canvas.size.y() as u32 {
             println!(
