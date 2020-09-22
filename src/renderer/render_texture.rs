@@ -1,22 +1,13 @@
 use gfx_hal::{
     buffer, command, format as f,
-    format::{AsFormat, ChannelType, Rgba8Srgb as ColorFormat, Swizzle},
-    image as i, memory as m, pass,
-    pass::Subpass,
-    pool,
+    format::{AsFormat, Rgba8Srgb as ColorFormat, Swizzle},
+    image as i, memory as m,
     prelude::*,
     pso,
-    pso::{PipelineStage, ShaderStageFlags, VertexInputRate},
-    queue::{QueueGroup, Submission},
-    window,
+    pso::PipelineStage,
+    queue::QueueGroup,
 };
-use std::{
-    borrow::Borrow,
-    io::Cursor,
-    iter,
-    mem::{self, ManuallyDrop},
-    ptr,
-};
+use std::{iter, mem::ManuallyDrop, ptr};
 pub struct RenderTexture<B: gfx_hal::Backend> {
     image_logo: ManuallyDrop<B::Image>,
     image_upload_memory: ManuallyDrop<B::Memory>,
@@ -38,15 +29,13 @@ impl<B: gfx_hal::Backend> RenderTexture<B> {
         memory_types: &std::vec::Vec<gfx_hal::adapter::MemoryType>,
         upload_type: gfx_hal::MemoryTypeId,
         limits: gfx_hal::Limits,
+        (width, height): (u32, u32),
     ) -> RenderTexture<B> {
         // Image
         let non_coherent_alignment = limits.non_coherent_atom_size as u64;
-        let img_data = include_bytes!("../data/logo.png");
 
-        let img = image::load(Cursor::new(&img_data[..]), image::ImageFormat::Png)
-            .unwrap()
-            .to_rgba();
-        let (width, height) = img.dimensions();
+        let img = image::RgbaImage::new(width, height);
+        println!("loaded dimensions: {} {}", width, height);
         let kind = i::Kind::D2(width as i::Size, height as i::Size, 1, 1);
         let row_alignment_mask = limits.optimal_buffer_copy_pitch_alignment as u32 - 1;
         let image_stride = 4usize;

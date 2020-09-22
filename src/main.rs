@@ -28,31 +28,12 @@ pub fn wasm_main() {
 }
 mod renderer;
 mod text_render;
-use gfx_hal::{
-    buffer, command, format as f,
-    format::{AsFormat, ChannelType, Rgba8Srgb as ColorFormat, Swizzle},
-    image as i, memory as m, pass,
-    pass::Subpass,
-    pool,
-    prelude::*,
-    pso,
-    pso::{PipelineStage, ShaderStageFlags, VertexInputRate},
-    queue::{QueueGroup, Submission},
-    window,
-};
+use gfx_hal::{prelude::*, window};
 use renderer::Renderer;
 pub use renderer::Updater;
 
-use std::{
-    borrow::Borrow,
-    io::Cursor,
-    iter,
-    mem::{self, ManuallyDrop},
-    ptr,
-};
-
 fn main() {
-    let mut text_render = text_render::TextRender::new(renderer::DIMS.width,renderer::DIMS.height);
+    let mut text_render = text_render::TextRender::new(renderer::DIMS.width, renderer::DIMS.height);
     #[cfg(target_arch = "wasm32")]
     console_log::init_with_level(log::Level::Debug).unwrap();
 
@@ -146,10 +127,6 @@ fn main() {
                     ..
                 } => {
                     text_render.update(virtual_keycode);
-                }
-
-                winit::event::WindowEvent::KeyboardInput { input, .. } => {
-                    println!("input: {:?}", input)
                 }
 
                 winit::event::WindowEvent::Resized(dims) => {
